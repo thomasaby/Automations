@@ -30,17 +30,20 @@ This project automates the Sunday service preparation process by:
 ### Installation
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/thomasaby/Automations.git
 cd Automations
 ```
 
 2. Install dependencies:
+
 ```bash
 pip install -r requirements.txt
 ```
 
 3. Set environment variables:
+
 ```bash
 export GMAIL_USER="your-email@gmail.com"
 export GMAIL_APP_PASSWORD="your-app-password"
@@ -58,16 +61,19 @@ python main.py
 ## How It Works
 
 ### 1. Newsletter Retrieval (`get_latest_newsletter()`)
+
 - Connects to Gmail using IMAP over SSL
 - Searches for emails with subject "Downes Road Weekly Newsletter"
 - Extracts and returns the plain text body of the latest email
 
 ### 2. Summarization (`summarize_with_gemini()`)
+
 - Sends newsletter content to Google's Gemini API
 - Prompts the model to extract scripture references and sermon points
 - Returns a 3-sentence summary
 
 ### 3. Notification (`send_telegram_notification()`)
+
 - Formats the summary with markdown styling
 - Posts the message to Telegram using the Bot API
 
