@@ -44,12 +44,44 @@ def get_latest_newsletter():
     return None
 
 def summarize_with_groq(text):
-    """Summarizes using Groq's lightning-fast LPU inference."""
+    """Summarizes using Groq's LPU inference and an external prompt template."""
     if not text: return "No content."
     
+    # 1. Load the external prompt template
+    try:
+        with open("prompt.txt", "r", encoding="utf-8") as f:
+            prompt_template = f.read()
+    except FileNotFoundError:
+        print("Error: prompt.txt is missing from the repository.")
+        return "Configuration Error: Prompt file not found."
+
+    # 2. Inject the newsletter text into the template
+    formatted_prompt = prompt_template.format(newsletter_content=text)
+
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "model": MODEL_ID,
+        # We can now just pass the fully formatted string as a single user message
+        "messages": [
+            {
+                "role": "user", 
+                "content": formatted_prompt
+            }
+        ],
+        "temperature": 0.3
+    }
+    
+    try:
+        response = requests.post(ENDPOINT, headers=headers, json=payload)
+        response.raise_for_status()
+        return response.json()['choices'][0]['message']['content']
+    except Exception as e:
+        print(f"Groq API Error: {e}")
+        return "AI Summary unavailable."
     }
     
     payload = {
