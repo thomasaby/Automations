@@ -5,15 +5,11 @@ on:
     - cron: '0 15 * * 0' # 8:00 AM PST Sunday
   workflow_dispatch:
 
-permissions:
-  contents: read
-  models: read  # Required for GitHub Models API access
-
 jobs:
-  run-automation:
+  run-sundayprep:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -21,12 +17,25 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: Install Python Dependencies
+        run: pip install requests
 
-      - name: Execute SundayPrep
+      - name: Install and Run Ollama
+        run: |
+          # 1. Install Ollama
+          curl -fsSL https://ollama.com/install.sh | sh
+          
+          # 2. Start the Ollama server in the background
+          ollama serve &
+          
+          # 3. Wait a few seconds for the server to fully boot
+          sleep 5
+          
+          # 4. Download the lightweight Llama 3.2 model
+          ollama pull llama3.2:1b
+
+      - name: Execute Python Script
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Built-in secret
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_PASS: ${{ secrets.GMAIL_APP_PASSWORD }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
