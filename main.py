@@ -2,10 +2,11 @@ import os
 import imaplib
 import email
 import requests
+from datetime import datetime
 
-# --- Configuration & Environment Variables ---
+# --- Configuration ---
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
 MODEL_ID = "llama-3.3-70b-versatile"
 
 GMAIL_USER = os.getenv("GMAIL_USER")
@@ -13,22 +14,39 @@ GMAIL_PASS = os.getenv("GMAIL_PASS")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
+def get_abbotsford_weather():
+    """Fetches real-time Sunday forecast for Abbotsford, BC."""
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": 49.0504,
+        "longitude": -122.3045,
+        "daily": "temperature_2m_max,temperature_2m_min,weathercode",
+        "timezone": "America/Los_Angeles",
+        "forecast_days": 7
+    }
+    try:
+        response = requests.get(url, params=params)
+        data = response.json()
+        # Index 0 is today, but since we run Sunday, we'll grab the first available
+        max_temp = data['daily']['temperature_2m_max'][0]
+        min_temp = data['daily']['temperature_2m_min'][0]
+        return f"High of {max_temp}°C, Low of {min_temp}°C with typical Fraser Valley conditions."
+    except Exception as e:
+        print(f"Weather Error: {e}")
+        return "Weather data unavailable."
+
 def get_latest_newsletter():
-    """Retrieves the plain text body of the newsletter from Gmail via IMAP."""
+    """Retrieves the newsletter body from Gmail."""
     try:
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
         mail.login(GMAIL_USER, GMAIL_PASS)
         mail.select("inbox")
-        
-        # Searching for the specific church newsletter subject
         status, messages = mail.search(None, '(SUBJECT "Downes Road Weekly Newsletter")')
         if status != "OK" or not messages[0]:
-            print("Newsletter not found in inbox.")
             return None
         
         latest_id = messages[0].split()[-1]
         res, msg_data = mail.fetch(latest_id, "(RFC822)")
-        
         for part in msg_data:
             if isinstance(part, tuple):
                 msg = email.message_from_bytes(part[1])
@@ -40,78 +58,57 @@ def get_latest_newsletter():
                     return msg.get_payload(decode=True).decode()
         mail.logout()
     except Exception as e:
-        print(f"Gmail Connection Error: {e}")
+        print(f"Gmail Error: {e}")
     return None
 
-def summarize_with_groq(text):
-    """Summarizes newsletter content using Groq LPU and an external prompt template."""
-    if not text:
-        return "No content provided for summarization."
-    
-    # Load the external prompt from prompt.txt
+def summarize_with_groq(newsletter_text, weather_text):
+    """Summarizes using Groq and the external prompt template."""
     try:
         with open("prompt.txt", "r", encoding="utf-8") as f:
-            prompt_template = f.read()
+            template = f.read()
     except FileNotFoundError:
-        print("Error: prompt.txt was not found in the root directory.")
-        return "Configuration Error: Prompt file missing."
+        return "Error: prompt.txt not found."
 
-    # Inject the newsletter content into the template placeholder {newsletter_content}
-    formatted_prompt = prompt_template.format(newsletter_content=text)
+    # Injecting both the newsletter and the REAL weather data
+    full_prompt = template.format(
+        newsletter_content=newsletter_text,
+        weather_info=weather_text
+    )
 
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
+    headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
     payload = {
         "model": MODEL_ID,
-        "messages": [
-            {
-                "role": "user", 
-                "content": formatted_prompt
-            }
-        ],
-        "temperature": 0.3 # Low temperature for factual consistency
+        "messages": [{"role": "user", "content": full_prompt}],
+        "temperature": 0.2
     }
     
     try:
-        response = requests.post(ENDPOINT, headers=headers, json=payload)
+        response = requests.post(GROQ_ENDPOINT, headers=headers, json=payload)
         response.raise_for_status()
         return response.json()['choices'][0]['message']['content']
     except Exception as e:
-        print(f"Groq API Error: {e}")
-        return "AI Summary generation failed."
+        return f"Inference Error: {e}"
 
 def send_telegram(msg):
-    """Sends the final Markdown summary to the Telegram Bot."""
+    """Sends the summary to Telegram."""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {
+    requests.post(url, json={
         "chat_id": TELEGRAM_CHAT_ID, 
-        "text": f"📖 *SundayPrep Summary*:\n\n{msg}", 
+        "text": msg, 
         "parse_mode": "Markdown"
-    }
-    try:
-        res = requests.post(url, json=data)
-        res.raise_for_status()
-    except Exception as e:
-        print(f"Telegram Delivery Error: {e}")
+    })
 
 def main():
-    print(f"--- Starting SundayPrep (Engine: {MODEL_ID}) ---")
-    
-    print("Step 1: Fetching latest newsletter...")
+    print("🚀 SundayPrep Started...")
+    weather = get_abbotsford_weather()
     content = get_latest_newsletter()
     
     if content:
-        print("Step 2: Processing summary via Groq...")
-        summary = summarize_with_groq(content)
-        
-        print("Step 3: Dispatched to Telegram...")
+        summary = summarize_with_groq(content, weather)
         send_telegram(summary)
-        print("Workflow Complete!")
+        print("✅ Telegram notification sent!")
     else:
-        print("Workflow Aborted: No newsletter found.")
+        print("❌ No newsletter found.")
 
 if __name__ == "__main__":
     main()
