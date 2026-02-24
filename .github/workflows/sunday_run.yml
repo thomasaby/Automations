@@ -2,7 +2,7 @@ name: SundayPrep Automation
 
 on:
   schedule:
-    - cron: '0 15 * * 0' # 8:00 AM PST Sunday
+    - cron: '30 18 * * 0' # 10:30 AM PST Sunday (18:30 UTC) update this for Daylight Saving Time if needed
   workflow_dispatch:
 
 jobs:
