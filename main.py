@@ -3,6 +3,12 @@ import imaplib
 import email
 import requests
 
+# Groq API Config
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
+# Using the incredibly fast and capable Llama 3.3 70B model
+MODEL_ID = "llama-3.3-70b-versatile"
+
 # Personal Config
 GMAIL_USER = os.getenv("GMAIL_USER")
 GMAIL_PASS = os.getenv("GMAIL_PASS")
@@ -37,52 +43,54 @@ def get_latest_newsletter():
         print(f"Gmail Connection Error: {e}")
     return None
 
-def summarize_with_ollama(text):
-    """Summarizes using the local Ollama server running on the GitHub Action."""
+def summarize_with_groq(text):
+    """Summarizes using Groq's lightning-fast LPU inference."""
     if not text: return "No content."
     
-    # Pointing directly to the local Ollama API
-    url = "http://localhost:11434/api/chat"
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
     
     payload = {
-        "model": "llama3.2:1b",
+        "model": MODEL_ID,
         "messages": [
             {
                 "role": "system", 
-                "content": "You are a church assistant. Read the newsletter and summarize it in exactly 3 concise sentences. Explicitly state the main scripture reference and the primary sermon points."
+                "content": "You are a church assistant. Summarize this newsletter in exactly 3 concise sentences. Explicitly state the main scripture reference and the primary sermon points."
             },
             {
                 "role": "user", 
                 "content": text
             }
         ],
-        "stream": False # We want the whole response at once, not streaming
+        "temperature": 0.3
     }
     
     try:
-        response = requests.post(url, json=payload)
+        response = requests.post(ENDPOINT, headers=headers, json=payload)
         response.raise_for_status()
-        return response.json()['message']['content']
+        return response.json()['choices'][0]['message']['content']
     except Exception as e:
-        print(f"Ollama API Error: {e}")
-        return "Local AI Summary unavailable."
+        print(f"Groq API Error: {e}")
+        return "AI Summary unavailable."
 
 def send_telegram(msg):
     """Dispatches the final summary to Telegram."""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID, 
-        "text": f"📖 *SundayPrep Summary*:\n\n{msg}", 
+        "text": f"{msg}", 
         "parse_mode": "Markdown"
     }
     requests.post(url, json=data)
 
 def main():
-    print("Starting SundayPrep with Local Ollama Engine...")
+    print("Starting SundayPrep with Groq LPU Engine...")
     content = get_latest_newsletter()
     if content:
-        print("Sending to Ollama for summarization...")
-        summary = summarize_with_ollama(content)
+        print(f"Summarizing via {MODEL_ID}...")
+        summary = summarize_with_groq(content)
         print("Sending to Telegram...")
         send_telegram(summary)
         print("Workflow complete!")

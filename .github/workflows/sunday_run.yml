@@ -6,36 +6,22 @@ on:
   workflow_dispatch:
 
 jobs:
-  run-sundayprep:
+  run-app:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
-
-      - name: Install Python Dependencies
+          
+      - name: Install Dependencies
         run: pip install requests
-
-      - name: Install and Run Ollama
-        run: |
-          # 1. Install Ollama
-          curl -fsSL https://ollama.com/install.sh | sh
-          
-          # 2. Start the Ollama server in the background
-          ollama serve &
-          
-          # 3. Wait a few seconds for the server to fully boot
-          sleep 5
-          
-          # 4. Download the lightweight Llama 3.2 model
-          ollama pull llama3.2:1b
-
-      - name: Execute Python Script
+        
+      - name: Run SundayPrep
         env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_PASS: ${{ secrets.GMAIL_APP_PASSWORD }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
