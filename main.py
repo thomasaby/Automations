@@ -6,8 +6,11 @@ import requests
 # GitHub Models Config
 # Note: GitHub token is automatically provided by the workflow
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-MODEL_ID = "google/gemini-3-flash"  # Latest stable Flash model in Feb 2026
+# Updated 2026 Production Endpoint
 ENDPOINT = "https://models.github.ai/inference/chat/completions"
+
+# Precise Model ID (Preview tags are more stable in early 2026)
+MODEL_ID = "google/gemini-3-flash-preview"
 
 # Gmail & Telegram Config
 GMAIL_USER = os.getenv("GMAIL_USER")
@@ -47,18 +50,21 @@ def summarize_with_github_models(text):
         return "No content found."
 
     headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Content-Type": "application/json",
-    }
-    
+            "Authorization": f"Bearer {GITHUB_TOKEN}",
+            "Content-Type": "application/json",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28" # Required for modern GitHub API routing
+        }
+
     payload = {
-        "model": MODEL_ID,
-        "messages": [
-            {"role": "system", "content": "Extract the scripture and sermon points. Provide a summary in exactly 3 concise sentences."},
-            {"role": "user", "content": text}
-        ],
-        "temperature": 0.5
-    }
+            "model": MODEL_ID,
+            "messages": [
+                {"role": "system", "content": "You are a church assistant. Summarize this newsletter in exactly 3 sentences."},
+                {"role": "user", "content": text}
+            ],
+            "temperature": 0.5,
+            "max_tokens": 500
+        }
 
     try:
         response = requests.post(ENDPOINT, headers=headers, json=payload)
