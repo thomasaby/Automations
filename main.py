@@ -6,8 +6,8 @@ import requests
 # GitHub Models Config
 # Note: GitHub token is automatically provided by the workflow
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-MODEL_ID = "gemini-3-flash"  # Latest stable Flash model in Feb 2026
-ENDPOINT = "https://models.inference.ai.azure.com/chat/completions"
+MODEL_ID = "google/gemini-3-flash"  # Latest stable Flash model in Feb 2026
+ENDPOINT = "https://models.github.ai/inference/chat/completions"
 
 # Gmail & Telegram Config
 GMAIL_USER = os.getenv("GMAIL_USER")
