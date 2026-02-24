@@ -49,20 +49,18 @@ def get_latest_newsletter():
     return None
 
 def summarize_with_gemini(text):
-    """Uses the modern Google GenAI SDK with forced v1 API version."""
+    """Uses the most compatible model string to bypass the 404."""
     if not text:
-        return "No content found in the newsletter."
+        return "No content found."
 
     print(f"DEBUG: Sending {len(text)} characters to Gemini API.")
     
-    # EXPLICITLY set the version to 'v1' to bypass the beta error
-    client = genai.Client(
-        api_key=GEMINI_API_KEY,
-        http_options={'api_version': 'v1'}
-    )
+    # We remove the http_options for now to let the SDK 
+    # use its default internal routing, but we change the model name.
+    client = genai.Client(api_key=GEMINI_API_KEY)
     
     prompt = f"""
-    The following is a church newsletter from Downes Road. Extract the main scripture reference 
+    The following is a church newsletter. Extract the main scripture reference 
     and the primary sermon points. Provide a summary in exactly 3 concise sentences.
     
     Newsletter Content:
@@ -70,16 +68,25 @@ def summarize_with_gemini(text):
     """
     
     try:
-        # Use the fully qualified model name for maximum clarity
+        # Try 'gemini-1.5-flash-8b' - it's often more 'available' for new keys
         response = client.models.generate_content(
-            model="models/gemini-1.5-flash", 
+            model="gemini-1.5-flash-8b", 
             contents=prompt
         )
         return response.text
     except Exception as e:
-        print(f"Gemini Error: {e}")
-        return "Error generating summary."
-    
+        # If that fails, let's try the standard Pro one last time as a fallback
+        print(f"Flash-8B failed, trying Pro... Error: {e}")
+        try:
+            response = client.models.generate_content(
+                model="gemini-1.5-pro",
+                contents=prompt
+            )
+            return response.text
+        except Exception as e2:
+            print(f"Both models failed. Error: {e2}")
+            return "Error generating summary."    
+        
 def send_telegram_notification(message):
     """Sends the final summary to the Telegram bot."""
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
