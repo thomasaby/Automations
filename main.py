@@ -57,7 +57,7 @@ def summarize_with_groq(text):
         "messages": [
             {
                 "role": "system", 
-                "content": "You are a church assistant. Summarize this newsletter in exactly 3 concise sentences. Explicitly state the main scripture reference and the primary sermon points."
+                "content": "Review this newsletter and give me the scripture reference for this weekend's sermon. Then give me other related scripture refernces to the topic mentioned in the letter. Structure your reponse in bullet points. "
             },
             {
                 "role": "user", 
