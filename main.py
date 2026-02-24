@@ -6,28 +6,25 @@ import requests
 
 # Configuration from Environment Variables
 GMAIL_USER = os.getenv("GMAIL_USER")
-GMAIL_PASS = os.getenv("GMAIL_PASS")  # Mapped to GMAIL_APP_PASSWORD in GitHub Secrets
+GMAIL_PASS = os.getenv("GMAIL_PASS")  # Mapped to GMAIL_APP_PASSWORD in YAML
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 def get_latest_newsletter():
-    """Retrieves the body of the latest Downes Road newsletter."""
+    """Connects to Gmail and retrieves the plain text body of the newsletter."""
     try:
-        if not GMAIL_USER or not GMAIL_PASS:
-            print("Error: Gmail credentials missing.")
-            return None
-
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
         mail.login(GMAIL_USER, GMAIL_PASS)
         mail.select("inbox")
 
-        # Search for the exact subject line
+        # Search for the specific church newsletter subject
         status, messages = mail.search(None, '(SUBJECT "Downes Road Weekly Newsletter")')
         if status != "OK" or not messages[0]:
-            print("Newsletter not found in Inbox.")
+            print("Newsletter not found.")
             return None
 
-        # Fetch the most recent message ID
+        # Fetch the most recent message
         latest_id = messages[0].split()[-1]
         res, msg_data = mail.fetch(latest_id, "(RFC822)")
         
@@ -40,49 +37,74 @@ def get_latest_newsletter():
                             return part.get_payload(decode=True).decode()
                 else:
                     return msg.get_payload(decode=True).decode()
-        
         mail.close()
         mail.logout()
     except Exception as e:
-        print(f"Gmail Connection Error: {e}")
+        print(f"Gmail Error: {e}")
     return None
 
-def send_telegram_chunks(text):
-    """Splits text into chunks to respect Telegram's 4096 char limit."""
+def summarize_with_gemini(text):
+    """Summarizes using the Gemini 3 Flash model (Latest as of Feb 2026)."""
     if not text:
+        return "No content to summarize."
+
+    print(f"DEBUG: Sending {len(text)} characters to Gemini 3 API.")
+    
+    # Initialize the modern SDK client
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    
+    prompt = f"""
+    You are an assistant for a church member. Analyze this newsletter from Downes Road.
+    1. Identify the primary Scripture reference mentioned for this week.
+    2. Summarize the main sermon points or theme.
+    Output: Provide exactly 3 concise sentences.
+    
+    Newsletter Content:
+    {text}
+    """
+    
+    try:
+        # Use 'gemini-3-flash' - the current stable workhorse
+        response = client.models.generate_content(
+            model="gemini-3-flash", 
+            contents=prompt
+        )
+        return response.text
+    except Exception as e:
+        print(f"Gemini API Error: {e}")
+        return "Could not generate AI summary. Check API logs."
+
+def send_telegram_notification(message):
+    """Sends the finalized summary to your Telegram phone bot."""
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        print("Telegram credentials missing.")
         return
 
-    MAX_LEN = 4000 
-    # Create chunks of 4000 characters
-    chunks = [text[i:i+MAX_LEN] for i in range(0, len(text), MAX_LEN)]
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": f"📖 *SundayPrep Summary*:\n\n{message}",
+        "parse_mode": "Markdown"
+    }
     
-    print(f"Sending {len(chunks)} message(s) to Telegram...")
-    
-    for i, chunk in enumerate(chunks):
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        header = f"📦 *SundayPrep Raw Content (Part {i+1}/{len(chunks)})*\n\n"
-        payload = {
-            "chat_id": TELEGRAM_CHAT_ID,
-            "text": header + chunk,
-            "parse_mode": "Markdown"
-        }
-        
-        try:
-            response = requests.post(url, json=payload)
-            response.raise_for_status()
-        except Exception as e:
-            print(f"Telegram failed on part {i+1}: {e}")
+    try:
+        requests.post(url, json=payload).raise_for_status()
+    except Exception as e:
+        print(f"Telegram Dispatch Error: {e}")
 
 def main():
-    print("Step 1: Fetching Newsletter...")
-    raw_content = get_latest_newsletter()
+    print("Initalizing SundayPrep...")
+    content = get_latest_newsletter()
     
-    if raw_content:
-        print(f"Step 2: Sending raw content ({len(raw_content)} characters)...")
-        send_telegram_chunks(raw_content)
-        print("Success! Check your Telegram.")
+    if content:
+        print("Generating AI Summary...")
+        summary = summarize_with_gemini(content)
+        
+        print("Sending to Telegram...")
+        send_telegram_notification(summary)
+        print("Done!")
     else:
-        print("Workflow stopped: No content to send.")
+        print("Workflow aborted: No content found.")
 
 if __name__ == "__main__":
     main()
