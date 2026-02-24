@@ -45,8 +45,15 @@ def get_latest_newsletter():
 
 def summarize_with_gemini(text):
     """Uses Gemini API to condense the newsletter into 3 concise sentences."""
+    if not text:
+        print("Error: No text provided to summarize.")
+        return "No content found in the newsletter."
+
+    # Add this line here to debug
+    print(f"DEBUG: Sending {len(text)} characters to Gemini API.")
+
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-1.5-flash-latest')
     
     prompt = f"""
     The following is a church newsletter. Extract the main scripture reference 
