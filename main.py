@@ -49,17 +49,20 @@ def get_latest_newsletter():
     return None
 
 def summarize_with_gemini(text):
-    """Uses the modern Google GenAI SDK to summarize."""
+    """Uses the modern Google GenAI SDK with forced v1 API version."""
     if not text:
         return "No content found in the newsletter."
 
     print(f"DEBUG: Sending {len(text)} characters to Gemini API.")
     
-    # Initialize the modern client
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    # EXPLICITLY set the version to 'v1' to bypass the beta error
+    client = genai.Client(
+        api_key=GEMINI_API_KEY,
+        http_options={'api_version': 'v1'}
+    )
     
     prompt = f"""
-    The following is a church newsletter. Extract the main scripture reference 
+    The following is a church newsletter from Downes Road. Extract the main scripture reference 
     and the primary sermon points. Provide a summary in exactly 3 concise sentences.
     
     Newsletter Content:
@@ -67,15 +70,16 @@ def summarize_with_gemini(text):
     """
     
     try:
+        # Use the fully qualified model name for maximum clarity
         response = client.models.generate_content(
-            model="gemini-1.5-flash", 
+            model="models/gemini-1.5-flash", 
             contents=prompt
         )
         return response.text
     except Exception as e:
         print(f"Gemini Error: {e}")
         return "Error generating summary."
-
+    
 def send_telegram_notification(message):
     """Sends the final summary to the Telegram bot."""
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
