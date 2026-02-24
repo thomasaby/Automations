@@ -66,7 +66,7 @@ def summarize_with_gemini(text):
     try:
         # Use 'gemini-3-flash' - the current stable workhorse
         response = client.models.generate_content(
-            model="gemini-3-flash", 
+            model="gemini-2.0-flash", 
             contents=prompt
         )
         return response.text
